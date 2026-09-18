@@ -1,0 +1,22 @@
+<Window x:Class="AIUsage.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="AI Usage"
+        Width="195" SizeToContent="Height"
+        WindowStyle="None" AllowsTransparency="True" Background="Transparent"
+        ResizeMode="NoResize" ShowInTaskbar="False"
+        FontFamily="Malgun Gothic, Segoe UI">
+    <Border x:Name="Card" CornerRadius="10" Background="#EB1E1E1E" BorderBrush="#33FFFFFF" BorderThickness="1"
+            Padding="8,5,8,6" ToolTipService.InitialShowDelay="600"
+            MouseLeftButtonDown="Card_MouseLeftButtonDown"
+            MouseRightButtonUp="Card_MouseRightButtonUp">
+        <StackPanel>
+            <Grid>
+                <TextBlock Text="AI Usage" Foreground="#F0F0F0" FontSize="11.5" FontWeight="SemiBold"/>
+                <TextBlock x:Name="StatusText" Foreground="#D0D0D0" FontSize="9.5"
+                           HorizontalAlignment="Right" VerticalAlignment="Center"/>
+            </Grid>
+            <UniformGrid x:Name="RowsPanel" Rows="1" Margin="0,4,0,0"/>
+        </StackPanel>
+    </Border>
+</Window>
