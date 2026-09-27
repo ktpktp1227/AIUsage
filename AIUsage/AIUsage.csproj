@@ -11,9 +11,28 @@
     <AssemblyName>AIUsage</AssemblyName>
     <Product>AI Usage</Product>
     <AssemblyTitle>AI Usage</AssemblyTitle>
-    <Version>1.1.0</Version>
+    <Version>1.1.1</Version>
     <Authors>GREAT PEACE</Authors>
     <Copyright>Copyright (c) 2026 GREAT PEACE</Copyright>
   </PropertyGroup>
+
+  <!-- Release 게시: .NET 런타임을 실행파일에 포함(자체 포함/단일 파일)하여
+       대상 PC에 .NET 9.0을 별도 설치하지 않아도 실행되도록 한다. -->
+  <PropertyGroup Condition="'$(Configuration)'=='Release'">
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>true</SelfContained>
+    <PublishSingleFile>true</PublishSingleFile>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+    <DebugType>none</DebugType>
+    <PublishDir>$(MSBuildProjectDirectory)\..\publish\</PublishDir>
+  </PropertyGroup>
+
+  <!-- Release 빌드가 끝나면 자동으로 게시(publish)까지 실행해 publish 폴더를 최신화한다.
+       IsInnerPublish 플래그로 게시가 다시 빌드를 유발할 때의 재귀 호출을 막는다. -->
+  <Target Name="PublishOnReleaseBuild" AfterTargets="Build" Condition="'$(Configuration)'=='Release' AND '$(IsInnerPublish)'!='true'">
+    <Message Importance="high" Text="Release 빌드 완료 -&gt; publish 폴더에 게시합니다..." />
+    <Exec Command="dotnet publish &quot;$(MSBuildProjectFullPath)&quot; -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true -p:IsInnerPublish=true -p:PublishDir=&quot;$(MSBuildProjectDirectory)\..\publish\&quot;" />
+  </Target>
 
 </Project>

@@ -20,7 +20,7 @@ namespace AIUsage;
 public partial class MainWindow : Window
 {
     private static readonly CultureInfo Korean = new("ko-KR");
-    private static readonly int[] RefreshChoices = [1, 5, 10];
+    private static readonly int[] RefreshChoices = [1, 3, 5, 10];
     private const string RunKeyPath = @"Software\Microsoft\Windows\CurrentVersion\Run";
     private const string AppName = "AIUsage";
     private const string DisplayName = "AI Usage";
@@ -35,6 +35,7 @@ public partial class MainWindow : Window
     private Forms.ContextMenuStrip? _menu;
     private UsageSnapshot? _last;
     private UsageException? _error;
+    private DateTimeOffset _cycleStartAt = DateTimeOffset.Now;
     private bool _fetching;
     private bool _exiting;
 
@@ -54,7 +55,11 @@ public partial class MainWindow : Window
 
         // CLI 조회는 설정한 간격마다, 남은 시간 문구는 20초마다 다시 계산
         _refreshTimer.Interval = TimeSpan.FromMinutes(_settings.RefreshMinutes);
-        _refreshTimer.Tick += async (_, _) => await RefreshAsync();
+        _refreshTimer.Tick += async (_, _) =>
+        {
+            RestartTick();
+            await RefreshAsync();
+        };
         _tickTimer.Tick += (_, _) => Render();
 
         Loaded += async (_, _) =>
@@ -147,10 +152,44 @@ public partial class MainWindow : Window
         }
         Card.ToolTip = tooltip.Count > 0 ? string.Join("\n", tooltip) : "Claude Code CLI로 사용량을 조회합니다";
 
+        // 조회 중에는 진행률을 비워 둔다
+        CycleGaugeHost.Child = BuildMiniGauge(_fetching ? 0 : RefreshCyclePercent(), 28, _settings.RefreshMinutes);
+
         UpdateTrayText();
     }
 
     private static bool IsExpired(UsageWindow w) => w.ResetsAt is DateTimeOffset r && r <= DateTimeOffset.Now;
+
+    /// <summary>현재 조회 주기 시작 이후 경과 시간을 조회 간격 대비 백분율로 반환.</summary>
+    private double RefreshCyclePercent()
+    {
+        double totalSeconds = _settings.RefreshMinutes * 60;
+        double elapsed = (DateTimeOffset.Now - _cycleStartAt).TotalSeconds;
+        // 다시 그리는 간격(20초) 단위로 내림 — 조회 직후에 조금 그려지는 것을 막는다 (0.5초는 타이머 오차 보정)
+        double step = _tickTimer.Interval.TotalSeconds;
+        double steps = Math.Floor((elapsed + 0.5) / step);
+        return Math.Clamp(steps * step / totalSeconds * 100, 0, 100);
+    }
+
+    /// <summary>가운데에 조회 간격(분) 숫자만 표시하는 작은 게이지. 조회 주기 진행률 표시용.</summary>
+    private static UIElement BuildMiniGauge(double percent, double size, int minutes)
+    {
+        const double stroke = 4;
+        var ring = new Grid { Width = size, Height = size };
+        ring.Children.Add(new Shapes.Ellipse { Stroke = MakeBrush("#33FFFFFF"), StrokeThickness = stroke });
+        if (percent > 0)
+            ring.Children.Add(BuildArc(Math.Clamp(percent, 0, 100), size, stroke, MakeBrush("#4CAF50"), PenLineCap.Flat));
+        ring.Children.Add(new TextBlock
+        {
+            Text = minutes.ToString(Korean),
+            Foreground = Brushes.White,
+            FontSize = 10,
+            FontWeight = FontWeights.SemiBold,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+        });
+        return ring;
+    }
 
     /// <summary>원형 게이지: 가운데에 %와 이름, 아래에 재설정 문구. percent가 null이면 빈 게이지.</summary>
     private static UIElement BuildGauge(string name, double? percent, string resetText, double size)
@@ -196,7 +235,7 @@ public partial class MainWindow : Window
         return panel;
     }
 
-    private static UIElement BuildArc(double pct, double size, double stroke, Brush brush)
+    private static UIElement BuildArc(double pct, double size, double stroke, Brush brush, PenLineCap cap = PenLineCap.Round)
     {
         double c = size / 2, r = (size - stroke) / 2;
         if (pct >= 99.9)
@@ -214,8 +253,8 @@ public partial class MainWindow : Window
             Data = new PathGeometry([figure]),
             Stroke = brush,
             StrokeThickness = stroke,
-            StrokeStartLineCap = PenLineCap.Round,
-            StrokeEndLineCap = PenLineCap.Round,
+            StrokeStartLineCap = cap,
+            StrokeEndLineCap = cap,
         };
     }
 
@@ -275,6 +314,7 @@ public partial class MainWindow : Window
     {
         if (e.ClickCount == 2)
         {
+            RestartCycle();
             await RefreshAsync();
             return;
         }
@@ -295,7 +335,11 @@ public partial class MainWindow : Window
     {
         _menu = new Forms.ContextMenuStrip();
 
-        var refreshItem = new Forms.ToolStripMenuItem("지금 새로고침", null, async (_, _) => await RefreshAsync());
+        var refreshItem = new Forms.ToolStripMenuItem("지금 새로고침", null, async (_, _) =>
+        {
+            RestartCycle();
+            await RefreshAsync();
+        });
         var intervalItem = new Forms.ToolStripMenuItem("조회 간격");
         foreach (int minutes in RefreshChoices)
         {
@@ -341,10 +385,25 @@ public partial class MainWindow : Window
     {
         _settings.RefreshMinutes = minutes;
         _settings.Save();
-        _refreshTimer.Stop();
         _refreshTimer.Interval = TimeSpan.FromMinutes(minutes);
-        _refreshTimer.Start();
+        RestartCycle();
         Render();
+    }
+
+    /// <summary>조회 타이머를 다시 시작해 진행률 링과 실제 다음 조회 시점을 맞춘다.</summary>
+    private void RestartCycle()
+    {
+        _refreshTimer.Stop();
+        _refreshTimer.Start();
+        RestartTick();
+    }
+
+    /// <summary>다시 그리는 타이머를 주기 시작에 맞춰, 20초·40초… 시점에 링이 갱신되게 한다.</summary>
+    private void RestartTick()
+    {
+        _tickTimer.Stop();
+        _tickTimer.Start();
+        _cycleStartAt = DateTimeOffset.Now;
     }
 
     private void ShowAbout()

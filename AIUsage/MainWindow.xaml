@@ -16,7 +16,11 @@
                 <TextBlock x:Name="StatusText" Foreground="#D0D0D0" FontSize="9.5"
                            HorizontalAlignment="Right" VerticalAlignment="Center"/>
             </Grid>
-            <UniformGrid x:Name="RowsPanel" Rows="1" Margin="0,4,0,0"/>
+            <Grid Margin="0,4,0,0">
+                <UniformGrid x:Name="RowsPanel" Rows="1"/>
+                <Border x:Name="CycleGaugeHost" HorizontalAlignment="Center" VerticalAlignment="Top"
+                        Margin="0,-16,0,0" Panel.ZIndex="1"/>
+            </Grid>
         </StackPanel>
     </Border>
 </Window>
